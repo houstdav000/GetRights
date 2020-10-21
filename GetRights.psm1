@@ -65,6 +65,7 @@ Function Get-RightsUser {
 
     # Check each acl for users
     foreach ($ace in $acl.Access) {
+        $newRight = $null
 
         # Check for existing User in rights array
         foreach ($right in $rights) {
