@@ -8,7 +8,6 @@ Function Get-RightsOwner {
     return (Get-Acl -Path $Path).Owner
 }
 
-<#
 Function Get-RightsTable {
     Param(
         [string] $Path = '.',
@@ -17,40 +16,46 @@ Function Get-RightsTable {
 
     $rights = Get-RightsUser -Path $Path -User $User
 
-    $rightsTable = System.Collections.ArrayList
+    $rightsTable = New-Object System.Collections.ArrayList
     foreach ($UserObj in $User) {
         $rightsObj = New-Object PSObject
-        Add-Member -InputObject $rightsObj -Membertype Property -Name User -Value $right.User
-        Add-Member -InputObject $rightsObj -Membertype Property -Name "FullControl" -Value $false
-        Add-Member -InputObject $rightsObj -Membertype Property -Name "TakeOwnerShip" -Value $false
-        Add-Member -InputObject $rightsObj -Membertype Property -Name "ChangePermissions" -Value $false
-        Add-Member -InputObject $rightsObj -Membertype Property -Name "ReadPermissions" -Value $false
-        Add-Member -InputObject $rightsObj -Membertype Property -Name "Delete" -Value $false
-        Add-Member -InputObject $rightsObj -Membertype Property -Name "WriteAttributes" -Value $false
-        Add-Member -InputObject $rightsObj -Membertype Property -Name "ReadAttributes" -Value $false
-        Add-Member -InputObject $rightsObj -Membertype Property -Name "DeleteSubDirectoriesAndFiles" -Value $false
-        Add-Member -InputObject $rightsObj -Membertype Property -Name "ExecuteFile/Traverse" -Value $false
-        Add-Member -InputObject $rightsObj -Membertype Property -Name "WriteExtendedAttributes" -Value $false
-        Add-Member -InputObject $rightsObj -Membertype Property -Name "ReadExtendedAttribtes" -Value $false
-        Add-Member -InputObject $rightsObj -Membertype Property -Name "CreateDirectories/AppendData" -Value $false
-        Add-Member -InputObject $rightsObj -Membertype Property -Name "WriteData/CreateFiles" -Value $false
-        Add-Member -InputObject $rightsObj -Membertype Property -Name "ReadDataListDirectory/ReadData" -Value $false
-        $rightTable.Add($rightObj)
+        Add-Member -InputObject $rightsObj -Membertype NoteProperty -Name 'User' -Value $right.User
+        Add-Member -InputObject $rightsObj -Membertype NoteProperty -Name 'FullControl' -Value $false
+        Add-Member -InputObject $rightsObj -Membertype NoteProperty -Name 'TakeOwnerShip' -Value $false
+        Add-Member -InputObject $rightsObj -Membertype NoteProperty -Name 'ChangePermissions' -Value $false
+        Add-Member -InputObject $rightsObj -Membertype NoteProperty -Name 'ReadPermissions' -Value $false
+        Add-Member -InputObject $rightsObj -Membertype NoteProperty -Name 'Delete' -Value $false
+        Add-Member -InputObject $rightsObj -Membertype NoteProperty -Name 'WriteAttributes' -Value $false
+        Add-Member -InputObject $rightsObj -Membertype NoteProperty -Name 'ReadAttributes' -Value $false
+        Add-Member -InputObject $rightsObj -Membertype NoteProperty -Name 'DeleteSubDirectoriesAndFiles' -Value $false
+        Add-Member -InputObject $rightsObj -Membertype NoteProperty -Name 'ExecuteFile' -Value $false
+        Add-Member -InputObject $rightsObj -Membertype NoteProperty -Name 'WriteExtendedAttributes' -Value $false
+        Add-Member -InputObject $rightsObj -Membertype NoteProperty -Name 'ReadExtendedAttribtes' -Value $false
+        Add-Member -InputObject $rightsObj -Membertype NoteProperty -Name 'AppendData' -Value $false
+        Add-Member -InputObject $rightsObj -Membertype NoteProperty -Name 'WriteData' -Value $false
+        Add-Member -InputObject $rightsObj -Membertype NoteProperty -Name 'ReadData' -Value $false
+        Add-Member -InputObject $rightsObj -Membertype NoteProperty -Name 'Synchronize' -Value $false
+        $rightsTable.Add($rightObj) > $null
     }
 
-    # Parse Allow statements
+    # Parse statements
     foreach ($right in $rights) {
-        if ($right.AccessControlType -eq "Allow"){
-            switch ($right.FileSystemRights) {
-                "FullControl" {
-                    $rightsObj.FullControl = $true
-                    $rightsObj.TakeOwnership = $true
+        $user = $right.User
+        foreach ($ace in $right.ACL) {
+            if ($ace.AccessControlType -eq 'Allow') {
+                $fileRights = $ace.FileSystemRights.toString().Split() -replace '[,]',''
+
+                foreach ($fileRight in $fileRights) {
+                    switch ($fileRight) {
+                        "FullControl" {
+
+                        }
+                    }
                 }
             }
         }
     }
 }
-#>
 
 Function Get-RightsUser {
     Param(
@@ -66,27 +71,49 @@ Function Get-RightsUser {
     # Check each acl for users
     foreach ($ace in $acl.Access) {
         $newRight = $null
+        $created = $false
 
         # Check for existing User in rights array
         foreach ($right in $rights) {
-            if ($right.User -eq $ace.IdentityReference) {
+            if ($right.User -eq $ace.IdentityReference.toString()) {
                 $newRight = $right
             }
         }
         
         # Create new rights object if user is to be captured, and there isn't one already
-        if (($User -contains $ace.IdentityReference) -and ($newRight -eq $null)) {
+        if (($User -contains $ace.IdentityReference.toString()) -and ($newRight -eq $null)) {
+            $created = $true
             $newRight = New-Object PSObject
-            $ArrayList = New-Object System.Collections.ArrayList
-            $ArrayList.Add($ace) > $null
-            Add-Member -InputObject $newRight -Membertype NoteProperty -Name User -Value $ace.IdentityReference
-            Add-Member -InputObject $newRight -Membertype NoteProperty -Name ACL -Value $ArrayList
+            $AllowList = New-Object System.Collections.ArrayList
+            $DenyList = New-Object System.Collections.ArrayList
+            
+            $fileRights = $ace.FileSystemRights.toString().Split() -replace '[,]',''
+
+            foreach ($fileRight in $fileRights) {
+                if (($ace.AccessControlType.toString() -eq 'Allow') -and (-not ($AllowList -contains $fileRight))) {
+                    $AllowList.Add($fileRight) > $null
+                } elseif (-not ($DenyList -contains $fileRight)) {
+                    $DenyList.Add($fileRight) > $null
+                }
+            }
+
+            Add-Member -InputObject $newRight -MemberType NoteProperty -Name 'User' -Value $ace.IdentityReference.toString()
+            Add-Member -InputObject $newRight -MemberType NoteProperty -Name 'Allow' -Value $AllowList
+            Add-Member -InputObject $newRight -MemberType NoteProperty -Name 'Deny' -Value $DenyList
         } elseif ($newRight -ne $null) {
-            $newRight.ACL.Add($ace) > $null
+            $fileRights = $ace.FileSystemRights.toString().Split() -replace '[,]',''
+
+            foreach ($fileRight in $fileRights) {
+                if (($ace.AccessControlType.toString() -eq 'Allow') -and (-not ($newRight.Allow -contains $fileRight))) {
+                    $newRight.Allow.Add($fileRight) > $null
+                } elseif (-not ($newRight.Deny -contains $fileRight)) {
+                    $newRight.Deny.Add($fileRight) > $null
+                }
+            }
         }
             
         # If the right existed, or we created one, add it to the list
-        if ($newRight -ne $null) {
+        if ($created) {
             $rights.Add($newRight) > $null
         }
     }
