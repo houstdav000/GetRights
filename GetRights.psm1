@@ -78,25 +78,16 @@ Function Get-RightsUser {
         if (($User -contains $ace.IdentityReference) -and ($newRight -eq $null)) {
             $newRight = New-Object PSObject
             $ArrayList = New-Object System.Collections.ArrayList
-            $returnCode = $ArrayList.Add($ace)
-            if ($returnCode -ne 0) {
-                Write-Host "Error in adding to array"
-            }
+            $ArrayList.Add($ace) > $null
             Add-Member -InputObject $newRight -Membertype NoteProperty -Name User -Value $ace.IdentityReference
             Add-Member -InputObject $newRight -Membertype NoteProperty -Name ACL -Value $ArrayList
         } elseif ($newRight -ne $null) {
-            $returnCode = $newRight.ACL.Add($ace)
-            if ($returnCode -ne 0) {
-                Write-Host "Error in adding to array"
-            }
+            $newRight.ACL.Add($ace) > $null
         }
             
         # If the right existed, or we created one, add it to the list
         if ($newRight -ne $null) {
-            $returnCode = $rights.Add($newRight)
-            if ($returnCode -ne 0) {
-                Write-Host "Error in adding to array"
-            }
+            $rights.Add($newRight) > $null
         }
     }
 
